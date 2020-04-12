@@ -1,78 +1,109 @@
-import React, { useEffect, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
+import { useSelector, connect } from 'react-redux';
 import * as chartJs from 'chart.js';
+import PropTypes from 'prop-types';
 
-const Chart = () => {
-  // Extratring dummy data from the store
-  const dataSample = useSelector(state => state.root.dataSample);
-
-  // Configuring chart parameters and pusing dummy data
-  const chartConfig = {
-    type: 'line',
-    // passing data to out chart
+const Chart = props => {
+  const { chartType, observations } = props;
+  const temperatureData = useSelector(state => state.temperatureReducer.temperature);
+  const [chartConfig, setChartConfig] = useState({
+    type: chartType,
     data: {
-      // labels for X axe, inserting labels data from the store
-      labels: dataSample.labels,
+      labels: temperatureData.labels,
       datasets: [
         {
-          // title of the dataset
-          label: 'Patent temperature',
-          // Y axe color
-          borderColor: 'rgb(200, 30, 132)',
-          // Do not fill space bitween X and Y axes
-          fill: false,
-          // data for Y axe, inserting values data from the store
-          data: dataSample.values,
+          label: 'Patient temperature',
+          backgroundColor: '#4760ff',
+          data: temperatureData.values,
         },
       ],
     },
     options: {
-      // Chart positioning on the page
-      layout: {
-        padding: {
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 50,
-        },
-      },
       scales: {
         yAxes: [
           {
-            // Range on the values bitween which Y axe will be streched despite of the dataset values
             ticks: {
-              suggestedMax: 150,
-              suggestedMin: 0,
+              max: 110,
+              min: 80,
             },
           },
         ],
       },
     },
-  };
+  });
 
-  // useRef is the React hook which allow us to select DOM node when it's avaliable
   const chartContainer = useRef(null);
 
-  // Chart.js uses the Canvas tag to render Chat inside it
-  // and the ctx parameter in new Chart(ctx, options) is a reference to the
-  // <canvas /> element where chart will be attached.
-  // With second argument we pass chartConfig object which contain all paramets of the chart
+  const updateChartConfig = useCallback(() => {
+    const map = new Map();
+    observations.map(observation => {
+      const date = new Date(observation.date).toISOString().slice(0, 10);
+
+      let temp;
+      if (
+        !observation.physical.feverSeverity ||
+        observation.physical.feverSeverity === '' ||
+        !parseInt(observation.physical.feverSeverity, 10) > 0
+      ) {
+        temp = 0;
+      } else {
+        temp = parseInt(observation.physical.feverSeverity, 10);
+      }
+
+      if (map.has(date)) {
+        if (map.get(date).temp !== 0) {
+          map.get(date).temp = (map.get(date).temp + temp) / (map.get(date).numObservations + 1);
+        }
+        map.set(temp, {
+          temp,
+          date,
+        });
+      } else {
+        map.set(date, {
+          temp,
+          date,
+        });
+      }
+      return true;
+    });
+
+    const dates = [];
+    const temps = [];
+    map.forEach(entry => {
+      dates.push(entry.date);
+      temps.push(entry.temp);
+    });
+
+    setChartConfig(config => {
+      const newConfig = config;
+      newConfig.data.labels = dates;
+      newConfig.data.datasets[0].data = temps;
+      return newConfig;
+    });
+  }, [observations]);
+
   useEffect(() => {
-    const ChartJS = new chartJs.Chart(chartContainer.current, chartConfig);
-    ChartJS();
-  }, [chartContainer, chartConfig]);
+    updateChartConfig();
+    // eslint-disable-next-line no-unused-vars
+    const chart = new chartJs.Chart(chartContainer.current, chartConfig);
+  }, [chartContainer, chartConfig, updateChartConfig]);
 
   return (
-    <div
-      className="chart-container"
-      style={{
-        width: '600px',
-        height: '300px',
-      }}
-    >
+    <div>
       <canvas id="chart" ref={chartContainer} />
     </div>
   );
 };
 
-export default Chart;
+Chart.propTypes = {
+  chartType: PropTypes.string.isRequired,
+  observations: PropTypes.arrayOf(Object).isRequired,
+};
+
+const mapStateToProps = state => {
+  return {
+    observations: state.observationsReducer.observations,
+  };
+};
+
+export default connect(mapStateToProps)(Chart);

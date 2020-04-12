@@ -1,92 +1,72 @@
 import React from 'react';
 import '../css/Table.css';
-import '../css/themePalette.css';
-import { Table } from 'react-bootstrap';
+import { connect } from 'react-redux';
+import PropTypes from 'prop-types';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@material-ui/core';
+import Chart from './Chart';
+import chartType from '../utils/chartType';
 
-// The Table
-const LogTable = () => {
-  // Made dummy data as state becuase it might be easier to change later
-  const state = {
-    questionnaire: [
-      'Date',
-      'How Do you Feel?',
-      'How Are My Symptoms?',
-      'Difference From Yesterdsy',
-      'Any Noted Symptoms',
-      'Comments',
-    ],
-    log: [
-      {
-        date: '03/11',
-        feel: '10',
-        symptoms: '10',
-        yesterdsy: 'the same',
-        notedSymptoms: 'none',
-        comments: 'Felt great!',
-      },
-      {
-        date: '03/11',
-        feel: '10',
-        symptoms: '10',
-        yesterdsy: 'the same',
-        notedSymptoms: 'none',
-        comments: 'Felt great!',
-      },
-      {
-        date: '03/11',
-        feel: '10',
-        symptoms: '10',
-        yesterdsy: 'the same',
-        notedSymptoms: 'none',
-        comments: 'Felt great!',
-      },
-      {
-        date: '03/11',
-        feel: '10',
-        symptoms: '10',
-        yesterdsy: 'the same',
-        notedSymptoms: 'none',
-        comments: 'Felt great!',
-      },
-      {
-        date: '03/11',
-        feel: '10',
-        symptoms: '10',
-        yesterdsy: 'the same',
-        notedSymptoms: 'none',
-        comments: 'Felt great Felt great!Felt great',
-      },
-    ],
-  };
+const LogTable = props => {
+  const { detailData, observations } = props;
+  const questions = [
+    'Date',
+    'Overall Feeling',
+    'Cough',
+    'Fever',
+    'Chills',
+    'Shortness Of Breath',
+    'Sore Throat',
+    'Chest Pain',
+    'Fatigue',
+    'Bluishness',
+    'Comments',
+  ];
 
   return (
     <div>
-      {/* the start of the table */}
-      <div className="">
-        <Table responsive className="table">
-          <thead className="table-head">
-            <tr>
-              {state.questionnaire.map(question => (
-                <th>{question}</th>
+      <TableContainer>
+        <Table className="table">
+          <TableHead className="table-head">
+            <TableRow>
+              {questions.map(question => (
+                <TableCell key={question}>{question}</TableCell>
               ))}
-            </tr>
-          </thead>
-          {state.log.map(({ date, feel, symptoms, yesterdsy, notedSymptoms, comments }) => (
-            <tbody className="table-body">
-              <tr>
-                <td>{date}</td>
-                <td>{feel}</td>
-                <td>{symptoms}</td>
-                <td>{yesterdsy}</td>
-                <td>{notedSymptoms}</td>
-                <td>{comments}</td>
-              </tr>
-            </tbody>
+            </TableRow>
+          </TableHead>
+          {(detailData.length ? detailData : observations).map(observation => (
+            <TableBody key={observation.date}>
+              <TableRow>
+                <TableCell>{new Date(observation.date).toLocaleDateString()}</TableCell>
+                <TableCell>{observation.physical.dailyfeeling}</TableCell>
+                <TableCell>{observation.physical.coughSeverity}</TableCell>
+                <TableCell>{observation.physical.feverSeverity}</TableCell>
+                <TableCell>{observation.physical.chillsSeverity}</TableCell>
+                <TableCell>{observation.physical.shortnessOfBreathSeverity}</TableCell>
+                <TableCell>{observation.physical.soreThroatSeverity}</TableCell>
+                <TableCell>{observation.physical.chestPainSeverity}</TableCell>
+                <TableCell>{observation.physical.fatigueSeverity}</TableCell>
+                <TableCell>{observation.physical.bluishnessSeverity}</TableCell>
+                <TableCell>{observation.nonPhysical.openComment}</TableCell>
+              </TableRow>
+            </TableBody>
           ))}
         </Table>
-      </div>
+      </TableContainer>
+      <Chart chartType={chartType.bar} />
     </div>
   );
 };
 
-export default LogTable;
+LogTable.propTypes = {
+  detailData: PropTypes.arrayOf(Object).isRequired,
+  observations: PropTypes.arrayOf(Object).isRequired,
+};
+
+const mapStateToProps = state => {
+  return {
+    detailData: state.healthToggleReducer.detailData,
+    observations: state.observationsReducer.observations,
+  };
+};
+
+export default connect(mapStateToProps)(LogTable);

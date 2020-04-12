@@ -1,36 +1,33 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { configure, User } from 'radiks';
 import { Connect } from '@blockstack/connect';
-import { BrowserRouter, Switch } from 'react-router-dom';
+import { BrowserRouter, Switch, Route } from 'react-router-dom';
 import { connect } from 'react-redux';
-import ReactBlockstack, { useBlockstack, didConnect } from 'react-blockstack';
+import ReactBlockstack, { useBlockstack, didConnect, useFile } from 'react-blockstack';
+import Container from '@material-ui/core/Container';
+import PropTypes from 'prop-types';
 import Layout from './Layout';
 import Map from './Map';
 import DiagnosticContainer from './DiagnosticContainer';
 import { appConfig } from '../utils/constants';
-import setLoginLoading from '../redux/actions/actions';
 import FactQuizContainer from './FactQuizContainer';
 import PrivateRoute from './PrivateRoute';
-import SymptomsTracker from './SymptomsTracker';
+import Survey from './survey/Survey';
 import OnboardUser from './OnboardUser';
-
-const RADIKS_URL = process.env.REACT_APP_QA_URL || 'http://127.0.0.1:1260'; // TODO this will change to wherever our radiks server will be hosted in prod
+import About from './About';
+import Disclaimer from './Disclaimer';
+import NotFoundPage from './NotFoundPage';
+import actions from '../redux/actions/actions';
 
 ReactBlockstack({ appConfig });
 
-function App() {
-  const { userSession } = useBlockstack();
+const App = props => {
+  const { setLoading, fetchObservations } = props;
+  const { userSession, authenticated } = useBlockstack();
   const finished = useCallback(() => {
-    if (RADIKS_URL) {
-      configure({
-        apiServer: RADIKS_URL,
-        userSession,
-      });
-      User.createWithCurrentUser();
-    }
     didConnect({ userSession });
-  }, [userSession]);
+    setLoading(false);
+  }, [userSession, setLoading]);
   const authOptions = {
     redirectTo: '/',
     finished,
@@ -41,39 +38,63 @@ function App() {
     userSession,
   };
 
+  useEffect(() => {
+    if (authenticated) {
+      fetchObservations(userSession);
+    }
+  }, [userSession, fetchObservations, authenticated]);
+
+  const [disclaimerString] = useFile('disclaimer.json');
+
+  // If the content is null, disclaimer was not found, show disclaimer
+  let showDisclaimer = disclaimerString === null;
+
+  if (disclaimerString) {
+    const disclaimer = JSON.parse(disclaimerString);
+
+    // If disclaimer was found, show disclaimer if user did not agree
+    showDisclaimer = !disclaimer.answerChoice;
+  }
+
   return (
     <BrowserRouter>
       <Connect authOptions={authOptions}>
         <Layout>
+          {showDisclaimer && (
+            <Container>
+              <Disclaimer />
+            </Container>
+          )}
           <Switch>
             <PrivateRoute exact path="/" component={() => <DiagnosticContainer />} />
 
             {/* ADD/EDIT ROUTES WITH THEIR COMPONENTS HERE: */}
             <PrivateRoute path="/signup" />
-            <PrivateRoute path="/symptomsurvey" component={() => <SymptomsTracker />} />
+            <PrivateRoute path="/symptomsurvey" component={() => <Survey />} />
             <PrivateRoute path="/log" />
             <PrivateRoute path="/healthlog" />
             <PrivateRoute path="/education" component={() => <FactQuizContainer />} />
             <PrivateRoute path="/map" component={() => <Map />} />
             <PrivateRoute path="/settings" />
-            <PrivateRoute path="/onboard" component={OnboardUser} />
+            <PrivateRoute path="/onboard" component={() => <OnboardUser />} />
+            <PrivateRoute path="/about" component={() => <About />} />
+            <Route path="/404" component={NotFoundPage} />
+            <Route path="*" component={NotFoundPage} />
           </Switch>
         </Layout>
       </Connect>
     </BrowserRouter>
   );
-}
+};
 
-const mapStateToProps = ({ loginLoading }) => ({
-  loginLoading,
-});
+App.propTypes = {
+  setLoading: PropTypes.func.isRequired,
+  fetchObservations: PropTypes.func.isRequired,
+};
 
 const mapDispatchToProps = dispatch => ({
-  setLoading(isLoading) {
-    return () => {
-      dispatch(setLoginLoading(isLoading));
-    };
-  },
+  setLoading: isLoading => dispatch(actions.setLoginLoading(isLoading)),
+  fetchObservations: userSession => dispatch(actions.fetchObservations(userSession)),
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)(App);
+export default connect(null, mapDispatchToProps)(App);
